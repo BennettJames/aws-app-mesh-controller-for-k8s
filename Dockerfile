@@ -5,17 +5,22 @@ FROM --platform=${TARGETPLATFORM} golang:1.16 as builder
 
 WORKDIR /workspace
 
-COPY go.mod go.sum ./
+ARG GOPROXY
+ENV GOPROXY=${GOPROXY}
 
 # uncomment if using vendor
 # COPY ./vendor ./vendor
 
-ARG GOPROXY
-ENV GOPROXY=${GOPROXY}
-
+COPY go.mod go.sum ./
 RUN go mod download
 
-COPY . ./
+COPY ./main.go ./ATTRIBUTION.txt ./
+COPY .git/ ./.git/
+COPY pkg/ ./pkg/
+COPY apis/ ./apis/
+COPY controllers/ ./controllers/
+COPY mocks/ ./mocks/
+COPY webhooks/ ./webhooks/
 
 ARG TARGETOS
 ARG TARGETARCH

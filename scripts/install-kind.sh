@@ -13,7 +13,7 @@ set -Eo pipefail
 
 SCRIPTS_DIR=$(cd "$(dirname "$0")"; pwd)
 ROOT_DIR="$SCRIPTS_DIR/.."
-DEFAULT_KIND_VERSION="0.9.0"
+DEFAULT_KIND_VERSION="0.12.0"
 
 source "$SCRIPTS_DIR/lib/common.sh"
 

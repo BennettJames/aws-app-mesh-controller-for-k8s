@@ -3,6 +3,7 @@ package inject
 import (
 	"fmt"
 	"math"
+	"os"
 	"strconv"
 	"strings"
 
@@ -59,6 +60,17 @@ func updateEnvMapForEnvoy(vars EnvoyTemplateVariables, env map[string]string, vn
 	// 2) we don't allow overriding controller managed env with pod annotations
 	env["APPMESH_VIRTUAL_NODE_NAME"] = vname
 	env["AWS_REGION"] = vars.AWSRegion
+
+	// ques [bs]: can these just be checked explicitly?
+	if val, ok := os.LookupEnv("AWS_ACCESS_KEY_ID"); ok {
+		env["AWS_ACCESS_KEY_ID"] = val
+	}
+	if val, ok := os.LookupEnv("AWS_SECRET_ACCESS_KEY"); ok {
+		env["AWS_SECRET_ACCESS_KEY"] = val
+	}
+	if val, ok := os.LookupEnv("AWS_SESSION_TOKEN"); ok {
+		env["AWS_SESSION_TOKEN"] = val
+	}
 
 	env["ENVOY_ADMIN_ACCESS_ENABLE_IPV6"] = strconv.FormatBool(vars.EnableAdminAccessForIpv6)
 
