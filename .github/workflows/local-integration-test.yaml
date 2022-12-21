@@ -1,0 +1,130 @@
+name: local-integration-test
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  CONTROLLER_IMAGE_HOST: ${{ secrets.CI_AWS_ACCOUNT }}.dkr.ecr.us-west-2.amazonaws.com
+  CONTROLLER_IMAGE: ${{ secrets.CI_AWS_ACCOUNT }}.dkr.ecr.us-west-2.amazonaws.com/amazon/appmesh-controller
+
+jobs:
+  build-images:
+    name: Build Images
+    runs-on: ubuntu-22.04
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ secrets.CI_AWS_ROLE }}
+          role-session-name: ImageBuilder
+
+      - name: build for amd64 and arm64
+        run: |
+          aws ecr get-login-password --region us-west-2 | \
+            docker login --username AWS --password-stdin $CONTROLLER_IMAGE_HOST
+          docker buildx build \
+            --platform linux/amd64 \
+            -t $CONTROLLER_IMAGE:latest-linux-amd64 \
+            . --push
+          docker buildx build \
+            --platform linux/arm64 \
+            -t $CONTROLLER_IMAGE:latest-linux-arm64 \
+            . --push
+
+  integration-test:
+    name: Integration Test
+    runs-on: ubuntu-22.04
+    needs: [ build-images ]
+    env:
+      CLUSTER_NAME: "test-cluster"
+      GOBIN: "/usr/local/bin/" # used by some installers as a destination
+      BUILDX_V: "0.3.0"
+      KUBEBUILDER_V: "2.3.1"
+    steps:
+      - name: clean
+        run: |
+          rm -rf *
+
+      - name: checkout code
+        uses: actions/checkout@v3
+
+      - name: setup go 1.17
+        uses: actions/setup-go@v3
+        with:
+          go-version: '1.17.*'
+        id: go
+
+      - name: setup test environment
+        run: |
+          mkdir -vp ~/.docker/cli-plugins/
+          curl -sL -o ~/.docker/cli-plugins/docker-buildx "https://github.com/docker/buildx/releases/download/v${BUILDX_V}/buildx-v${BUILDX_V}.linux-amd64"
+          chmod a+x ~/.docker/cli-plugins/docker-buildx
+          
+          curl -L -o kubebuilder.tar.gz "https://github.com/kubernetes-sigs/kubebuilder/releases/download/v${KUBEBUILDER_V}/kubebuilder_${KUBEBUILDER_V}_linux_amd64.tar.gz"
+          tar xzf kubebuilder.tar.gz
+          sudo mv "kubebuilder_${KUBEBUILDER_V}_linux_amd64" /usr/local/kubebuilder
+          export PATH=$PATH:/usr/local/kubebuilder/bin
+          
+          curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3
+          chmod 700 get_helm.sh
+          ./get_helm.sh
+          
+          ./scripts/install-controller-gen.sh
+          ./scripts/install-kubectl.sh
+          go install sigs.k8s.io/kustomize/kustomize/v4@latest
+          
+          go mod download
+          go install github.com/onsi/ginkgo/ginkgo@v1.16.5
+
+      - name: unit test
+        run: |
+          make test
+
+      - name: Configure AWS Credentials (build)
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ secrets.CI_AWS_ROLE }}
+          role-session-name: IntegrationTest
+
+      - name: Setup Kind
+        uses: engineerd/setup-kind@v0.5.0
+        with:
+          version: "v0.17.0"
+          name: "${{ env.CLUSTER_NAME }}"
+
+      - name: Run Integration Tests
+        env:
+          ADA_ROLE: "${{ secrets.INTEG_TEST_ROLE }}"
+          VPC_ID: "${{ secrets.INTEG_TEST_VPC }}"
+          AWS_ACCOUNT_ID: "${{ secrets.CI_AWS_ACCOUNT }}"
+        run: |
+          KUBECONFIG="${HOME}/.kube/config" ./scripts/test-with-kind.sh
+
+  push-images:
+    name: Push Images
+    runs-on: ubuntu-22.04
+    needs: [ integration-test ]
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ secrets.CI_AWS_ROLE }}
+          role-session-name: ImageBuilder
+
+      - name: Push Combined Image
+        run: |
+          aws ecr get-login-password --region us-west-2 | \
+            docker login --username AWS --password-stdin $CONTROLLER_IMAGE_HOST
+          docker manifest create $CONTROLLER_IMAGE:latest $CONTROLLER_IMAGE:latest-linux-amd64 $CONTROLLER_IMAGE:latest-linux-arm64
+          docker manifest push $CONTROLLER_IMAGE:latest
