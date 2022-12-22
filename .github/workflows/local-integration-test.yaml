@@ -15,7 +15,7 @@ env:
   IMAGE: "${{ secrets.CI_AWS_ACCOUNT }}.dkr.ecr.us-west-2.amazonaws.com/amazon/appmesh-controller"
   IMAGE_TAG: "${{ github.event.inputs.tag }}"
   IMAGE_TAG_AMD: "${{ env.IMAGE_TAG }}-linux_amd64"
-  IMAGE_TAG_ARM: "${{ env.IMAGE_TAG }}-linux_arm64"
+  IMAGE_TAG_ARM:  "${{ env.IMAGE_TAG }}-linux_arm64"
 
 jobs:
   build-images:
