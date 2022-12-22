@@ -79,13 +79,13 @@ fi
 CONTROLLER_IMAGE="appmesh-controller"
 CONTROLLER_TAG="local"
 
-IMAGE_REPO="840364872350.dkr.ecr.us-west-2.amazonaws.com"
+IMAGE_HOST="840364872350.dkr.ecr.us-west-2.amazonaws.com"
 
-ENVOY_IMAGE="$IMAGE_REPO/aws-appmesh-envoy"
+ENVOY_IMAGE="$IMAGE_HOST/aws-appmesh-envoy"
 ENVOY_LATEST_TAG="v1.24.0.0-prod"
 ENVOY_1_22_TAG="v1.22.2.0-prod"
 
-PROXY_ROUTE_IMAGE="$IMAGE_REPO/aws-appmesh-proxy-route-manager"
+PROXY_ROUTE_IMAGE="$IMAGE_HOST/aws-appmesh-proxy-route-manager"
 PROXY_ROUTE_TAG="v6-prod"
 
 function install_crds {
@@ -98,7 +98,7 @@ function build_and_load_images {
   docker buildx build --platform linux/amd64 --build-arg GOPROXY="$GOPROXY" -t "$CONTROLLER_IMAGE:$CONTROLLER_TAG" . --load
   kind load docker-image --name "$CLUSTER_NAME" "$CONTROLLER_IMAGE:$CONTROLLER_TAG"
 
-  ecr_login "$AWS_REGION" "$IMAGE_REPO"
+  ecr_login "$AWS_REGION" "$IMAGE_HOST"
 
   local __images=(
       "$PROXY_ROUTE_IMAGE:$PROXY_ROUTE_TAG"

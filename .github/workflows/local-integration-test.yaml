@@ -1,16 +1,21 @@
 name: local-integration-test
 on:
-  push:
-    branches:
-      - master
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'The tag for this release (must already be pushed).'
+        required: true
 
 permissions:
   id-token: write
   contents: read
 
 env:
-  CONTROLLER_IMAGE_HOST: ${{ secrets.CI_AWS_ACCOUNT }}.dkr.ecr.us-west-2.amazonaws.com
-  CONTROLLER_IMAGE: ${{ secrets.CI_AWS_ACCOUNT }}.dkr.ecr.us-west-2.amazonaws.com/amazon/appmesh-controller
+  IMAGE_HOST: "${{ secrets.CI_AWS_ACCOUNT }}.dkr.ecr.us-west-2.amazonaws.com"
+  IMAGE: "${{ secrets.CI_AWS_ACCOUNT }}.dkr.ecr.us-west-2.amazonaws.com/amazon/appmesh-controller"
+  IMAGE_TAG: "${{ github.event.inputs.tag }}"
+  IMAGE_TAG_AMD: "${{ env.IMAGE_TAG }}-linux_amd64"
+  IMAGE_TAG_ARM: "${{ env.IMAGE_TAG }}-linux_arm64"
 
 jobs:
   build-images:
@@ -19,6 +24,8 @@ jobs:
     steps:
       - name: checkout code
         uses: actions/checkout@v3
+        with:
+          ref: refs/tags/${{ github.event.inputs.tag }}
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1-node16
@@ -29,15 +36,16 @@ jobs:
 
       - name: build for amd64 and arm64
         run: |
+          echo "experiment with self-referencing env: $IMAGE_TAG_AMD & $IMAGE_TAG_ARM"
           aws ecr get-login-password --region us-west-2 | \
-            docker login --username AWS --password-stdin $CONTROLLER_IMAGE_HOST
+            docker login --username AWS --password-stdin $IMAGE_HOST
           docker buildx build \
             --platform linux/amd64 \
-            -t $CONTROLLER_IMAGE:latest-linux-amd64 \
+            -t "${IMAGE}:${IMAGE_TAG}-linux_amd64" \
             . --push
           docker buildx build \
             --platform linux/arm64 \
-            -t $CONTROLLER_IMAGE:latest-linux-arm64 \
+            -t "${IMAGE}:${IMAGE_TAG}-linux_arm64" \
             . --push
 
   integration-test:
@@ -56,6 +64,8 @@ jobs:
 
       - name: checkout code
         uses: actions/checkout@v3
+        with:
+          ref: refs/tags/${{ github.event.inputs.tag }}
 
       - name: setup go 1.17
         uses: actions/setup-go@v3
@@ -87,7 +97,7 @@ jobs:
 
       - name: unit test
         run: |
-          make test
+          # make test # fixme [bs]: uncomment
 
       - name: Configure AWS Credentials (build)
         uses: aws-actions/configure-aws-credentials@v1-node16
@@ -107,6 +117,7 @@ jobs:
           ADA_ROLE: "${{ secrets.INTEG_TEST_ROLE }}"
           VPC_ID: "${{ secrets.INTEG_TEST_VPC }}"
           AWS_ACCOUNT_ID: "${{ secrets.CI_AWS_ACCOUNT }}"
+          TEST_SUITES: "mesh" # fixme [bs] - just for testing
         run: |
           KUBECONFIG="${HOME}/.kube/config" ./scripts/test-with-kind.sh
 
@@ -120,11 +131,11 @@ jobs:
         with:
           aws-region: us-west-2
           role-to-assume: ${{ secrets.CI_AWS_ROLE }}
-          role-session-name: ImageBuilder
+          role-session-name: ImagePusher
 
       - name: Push Combined Image
         run: |
           aws ecr get-login-password --region us-west-2 | \
-            docker login --username AWS --password-stdin $CONTROLLER_IMAGE_HOST
-          docker manifest create $CONTROLLER_IMAGE:latest $CONTROLLER_IMAGE:latest-linux-amd64 $CONTROLLER_IMAGE:latest-linux-arm64
-          docker manifest push $CONTROLLER_IMAGE:latest
+            docker login --username AWS --password-stdin $IMAGE_HOST
+          docker manifest create $IMAGE:latest $IMAGE:latest-linux-amd64 $IMAGE:latest-linux-arm64
+          docker manifest push $IMAGE:latest
