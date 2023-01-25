@@ -65,7 +65,7 @@ func Test_virtualServiceReconciler_reconcile(t *testing.T) {
 			err := k8sClient.Create(ctx, tt.args.vs.DeepCopy())
 			assert.NoError(t, err)
 
-			finalizerManager := k8s.NewDefaultFinalizerManager(k8sClient, &log.NullLogger{})
+			finalizerManager := k8s.NewDefaultFinalizerManager(k8sClient, logr.New(&log.NullLogSink{}))
 
 			recorder := record.NewFakeRecorder(3)
 
@@ -73,7 +73,7 @@ func Test_virtualServiceReconciler_reconcile(t *testing.T) {
 				k8sClient:        k8sClient,
 				finalizerManager: finalizerManager,
 				vsResManager:     vsResManager,
-				log:              log.NullLogger{},
+				log:              logr.New(&log.NullLogSink{}),
 				recorder:         recorder,
 			}
 
