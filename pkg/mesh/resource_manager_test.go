@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-app-mesh-controller-for-k8s/pkg/k8s"
 	"github.com/aws/aws-sdk-go/aws"
 	appmeshsdk "github.com/aws/aws-sdk-go/service/appmesh"
+	"github.com/go-logr/logr"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
