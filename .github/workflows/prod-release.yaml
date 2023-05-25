@@ -47,11 +47,11 @@ jobs:
           aws ecr-public get-login-password --region "${{ inputs.region }}" | \
             docker login --username AWS --password-stdin "public.ecr.aws"
           docker tag "$SRC_IMAGE:$AMD_TAG" "$DST_IMAGE:$AMD_TAG"
-          docker tag "$SRC_IMAGE:ARM_TAG" "$DST_IMAGE:ARM_TAG"
+          docker tag "$SRC_IMAGE:$ARM_TAG" "$DST_IMAGE:$ARM_TAG"
           docker push "$DST_IMAGE:$AMD_TAG"
-          docker push "$DST_IMAGE:ARM_TAG"
-          docker manifest create "$DST_IMAGE:TAG" "$DST_IMAGE:$AMD_TAG" "$DST_IMAGE:ARM_TAG"
-          docker manifest push "$DST_IMAGE:TAG"
+          docker push "$DST_IMAGE:$ARM_TAG"
+          docker manifest create "$DST_IMAGE:$TAG" "$DST_IMAGE:$AMD_TAG" "$DST_IMAGE:ARM_TAG"
+          docker manifest push "$DST_IMAGE:$TAG"
 
       - name: Deploy Images to US
           uses: ./.github/actions/push-image
@@ -121,6 +121,6 @@ jobs:
           with:
             source_image: "${{ secrets.BETA_AWS_ACCOUNT }}.dkr.ecr.us-west-2.amazonaws.com/amazon/appmesh-controller"
             image_tag: "${{ github.event.inputs.tag }}"
-            region: "cn-north-1"
+            region: "cn-northwest-1"
             repo_host: "${{ secrets.PROD_ZHY_AWS_ACCOUNT }}.dkr.ecr.cn-northwest-1.amazonaws.com.cn"
             role: "${{ secrets.PROD_ZHY_AWS_ROLE }}"
